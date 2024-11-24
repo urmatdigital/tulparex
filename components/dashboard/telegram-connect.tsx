@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { BrandTelegram, Loader2 } from "lucide-react";
+import { MessageSquare, Loader2 } from "lucide-react";
 
 export default function TelegramConnect() {
   const [isConnected, setIsConnected] = useState(false);
@@ -55,7 +55,7 @@ export default function TelegramConnect() {
 
   return (
     <Card className="p-8 max-w-md mx-auto text-center">
-      <BrandTelegram className="h-16 w-16 mx-auto mb-4 text-primary" />
+      <MessageSquare className="h-16 w-16 mx-auto mb-4 text-primary" />
       <h3 className="text-2xl font-semibold mb-4">
         {isConnected ? "Telegram подключен" : "Подключите Telegram"}
       </h3>
