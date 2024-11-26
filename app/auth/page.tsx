@@ -1,5 +1,6 @@
 import AuthForm from "@/components/auth/auth-form";
 import { Package } from "lucide-react";
+import { Suspense } from "react";
 
 export default function AuthPage() {
   return (
@@ -21,7 +22,9 @@ export default function AuthPage() {
           </div>
           
           <div className="glass-card p-8 rounded-lg shadow-lg bg-background/50 backdrop-blur supports-[backdrop-filter]:bg-background/60 dark:bg-background/50">
-            <AuthForm />
+            <Suspense fallback={<div>Loading...</div>}>
+              <AuthForm />
+            </Suspense>
           </div>
         </div>
       </div>
