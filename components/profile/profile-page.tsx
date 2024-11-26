@@ -12,7 +12,7 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Loader2, Camera, ArrowLeft } from "lucide-react"
 
-export function ProfilePage() {
+export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [userData, setUserData] = useState<any>(null)
