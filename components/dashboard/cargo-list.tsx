@@ -1,9 +1,7 @@
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { useEffect, useState } from "react"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import {
   Table,
   TableBody,
@@ -11,108 +9,171 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Plus } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
-import AddPackageDialog from "./add-package-dialog";
+} from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Loader2, Package, AlertCircle, Eye } from "lucide-react"
+import { format } from "date-fns"
+import { ru } from "date-fns/locale"
+import Link from "next/link"
 
-interface CargoListProps {
-  onUpdate?: () => void;
+interface Package {
+  id: string
+  tracking_number: string
+  status: string
+  description: string
+  created_at: string
+  updated_at: string
 }
 
-export default function CargoList({ onUpdate }: CargoListProps) {
-  const [packages, setPackages] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-  const supabase = createClientComponentClient();
-  const { toast } = useToast();
+interface CargoListProps {
+  userId: string
+}
+
+const statusConfig = {
+  pending: {
+    label: "Ожидается",
+    variant: "warning" as const,
+  },
+  in_transit: {
+    label: "В пути",
+    variant: "default" as const,
+  },
+  delivered: {
+    label: "Доставлен",
+    variant: "success" as const,
+  },
+  cancelled: {
+    label: "Отменен",
+    variant: "destructive" as const,
+  },
+}
+
+export function CargoList({ userId }: CargoListProps) {
+  const [packages, setPackages] = useState<Package[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const supabase = createClientComponentClient()
 
   useEffect(() => {
-    fetchPackages();
-  }, []);
+    const fetchPackages = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("packages")
+          .select("*")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
 
-  const fetchPackages = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from('packages')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setPackages(data || []);
-    } catch (error) {
-      toast({
-        title: "Ошибка",
-        description: "Не удалось загрузить список посылок",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
+        if (error) throw error
+        setPackages(data)
+      } catch (error) {
+        console.error("Error:", error)
+        setError("Не удалось загрузить список посылок")
+      } finally {
+        setIsLoading(false)
+      }
     }
-  };
 
-  const handleAddSuccess = async () => {
-    await fetchPackages();
-    if (onUpdate) onUpdate();
-    setIsAddDialogOpen(false);
-  };
+    const subscription = supabase
+      .channel("packages")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "packages",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          if (payload.eventType === "INSERT") {
+            setPackages((current) => [payload.new as Package, ...current])
+          } else if (payload.eventType === "DELETE") {
+            setPackages((current) =>
+              current.filter((pkg) => pkg.id !== payload.old.id)
+            )
+          } else if (payload.eventType === "UPDATE") {
+            setPackages((current) =>
+              current.map((pkg) =>
+                pkg.id === payload.new.id ? (payload.new as Package) : pkg
+              )
+            )
+          }
+        }
+      )
+      .subscribe()
+
+    fetchPackages()
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [supabase, userId])
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center gap-2 py-8 text-destructive">
+        <AlertCircle className="h-5 w-5" />
+        <p>{error}</p>
+      </div>
+    )
+  }
+
+  if (packages.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 py-8 text-muted-foreground">
+        <Package className="h-8 w-8" />
+        <p>У вас пока нет посылок</p>
+      </div>
+    )
+  }
 
   return (
-    <Card className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold">Список посылок</h2>
-        <Button onClick={() => setIsAddDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Добавить посылку
-        </Button>
-      </div>
-
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Трек номер</TableHead>
-              <TableHead>Статус</TableHead>
-              <TableHead>Дата создания</TableHead>
-              <TableHead>Последнее обновление</TableHead>
+    <div className="relative overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Трек номер</TableHead>
+            <TableHead>Статус</TableHead>
+            <TableHead>Дата создания</TableHead>
+            <TableHead className="text-right">Действия</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {packages.map((pkg) => (
+            <TableRow key={pkg.id}>
+              <TableCell className="font-medium">{pkg.tracking_number}</TableCell>
+              <TableCell>
+                <Badge variant={statusConfig[pkg.status as keyof typeof statusConfig].variant}>
+                  {statusConfig[pkg.status as keyof typeof statusConfig].label}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                {format(new Date(pkg.created_at), "PPp", { locale: ru })}
+              </TableCell>
+              <TableCell className="text-right">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  asChild
+                >
+                  <Link href={`/dashboard/tracking/${pkg.tracking_number}`}>
+                    <Eye className="h-4 w-4" />
+                    <span className="sr-only">Просмотреть детали</span>
+                  </Link>
+                </Button>
+              </TableCell>
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={4} className="text-center py-4">
-                  Загрузка...
-                </TableCell>
-              </TableRow>
-            ) : packages.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={4} className="text-center py-4">
-                  У вас пока нет посылок
-                </TableCell>
-              </TableRow>
-            ) : (
-              packages.map((pkg: any) => (
-                <TableRow key={pkg.id}>
-                  <TableCell className="font-medium">{pkg.tracking_number}</TableCell>
-                  <TableCell>{pkg.status}</TableCell>
-                  <TableCell>{new Date(pkg.created_at).toLocaleDateString()}</TableCell>
-                  <TableCell>{new Date(pkg.updated_at).toLocaleDateString()}</TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
-      <AddPackageDialog
-        open={isAddDialogOpen}
-        onOpenChange={setIsAddDialogOpen}
-        onSuccess={handleAddSuccess}
-      />
-    </Card>
-  );
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
 }

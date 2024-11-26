@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -14,9 +14,9 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { useAuth } from "./hooks/useAuth";
 import { useToast } from "@/components/ui/use-toast";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 const formSchema = z.object({
   email: z.string().email("Неверный формат email"),
@@ -25,10 +25,22 @@ const formSchema = z.object({
 
 export default function AuthForm() {
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
+  const { isLoading, signIn, signUp } = useAuth();
   const router = useRouter();
-  const supabase = createClientComponentClient();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const error = searchParams.get("error");
+    if (error === "no_profile") {
+      toast({
+        variant: "destructive",
+        title: "Ошибка",
+        description: "Профиль не найден. Пожалуйста, зарегистрируйтесь.",
+      });
+      setIsLogin(false);
+    }
+  }, [searchParams, toast]);
 
   const form = useForm({
     resolver: zodResolver(formSchema),
@@ -38,69 +50,23 @@ export default function AuthForm() {
     },
   });
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
-    setIsLoading(true);
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: values.email,
-          password: values.password,
-        });
-
-        if (error) throw error;
-
+        await signIn(values);
         toast({
           title: "Успешно!",
           description: "Вы успешно вошли в систему",
         });
-
-        router.push("/dashboard");
-        router.refresh();
       } else {
-        // Сначала проверяем, существует ли пользователь
-        const { data: existingUser } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('email', values.email)
-          .single();
-
-        if (existingUser) {
-          throw new Error("Пользователь с таким email уже существует");
-        }
-
-        // Пытаемся создать нового пользователя
-        const { data, error } = await supabase.auth.signUp({
-          email: values.email,
-          password: values.password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
-            data: {
-              email_confirm: true
-            }
-          },
-        });
-
-        if (error) {
-          // Если ошибка содержит "User already registered", значит пользователь существует в Auth
-          if (error.message.includes("already registered")) {
-            toast({
-              variant: "destructive",
-              title: "Ошибка",
-              description: "Пользователь с таким email уже существует",
-            });
-            return;
-          }
-          throw error;
-        }
-
+        await signUp(values);
         toast({
           title: "Успешно!",
           description: "Регистрация завершена",
         });
-
-        router.push("/dashboard");
-        router.refresh();
       }
+      router.push("/dashboard");
+      router.refresh();
     } catch (error: any) {
       let errorMessage = "Произошла ошибка";
       
@@ -125,10 +91,8 @@ export default function AuthForm() {
         title: "Ошибка",
         description: errorMessage,
       });
-    } finally {
-      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <Form {...form}>
@@ -152,7 +116,6 @@ export default function AuthForm() {
             </FormItem>
           )}
         />
-
         <FormField
           control={form.control}
           name="password"
@@ -171,21 +134,23 @@ export default function AuthForm() {
             </FormItem>
           )}
         />
-
         <div className="space-y-4">
-          <Button 
-            type="submit" 
-            className="w-full font-semibold" 
+          <Button
+            type="submit"
+            className="w-full font-semibold"
             disabled={isLoading}
-            size="lg"
           >
-            {isLoading
-              ? "Загрузка..."
-              : isLogin
-              ? "Войти"
-              : "Зарегистрироваться"}
+            {isLoading ? (
+              <span className="flex items-center gap-2">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                Загрузка...
+              </span>
+            ) : isLogin ? (
+              "Войти"
+            ) : (
+              "Зарегистрироваться"
+            )}
           </Button>
-
           <Button
             type="button"
             variant="ghost"

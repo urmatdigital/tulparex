@@ -1,16 +1,15 @@
 "use client";
 
-import { useState } from "react";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
@@ -20,105 +19,97 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/components/ui/use-toast";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { Loader2 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { useAddItem } from "./hooks/useAddItem";
 
 const formSchema = z.object({
-  trackingNumber: z
-    .string()
-    .min(1, "Введите трек-номер")
-    .regex(/^TE-\d{4}$/, "Неверный формат. Пример: TE-6507"),
+  tracking_number: z.string().min(1, "Введите трек-номер"),
+  description: z.string().min(1, "Введите описание посылки"),
 });
+
+type FormValues = z.infer<typeof formSchema>;
 
 interface AddPackageDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess: () => void;
+  onPackageAdded: () => void;
 }
 
 export default function AddPackageDialog({
   open,
   onOpenChange,
-  onSuccess,
+  onPackageAdded,
 }: AddPackageDialogProps) {
-  const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
-  const supabase = createClientComponentClient();
+  const { isLoading, addItem } = useAddItem<FormValues>({
+    table: "packages",
+    successMessage: "Посылка добавлена в систему",
+    errorMessage: "Не удалось добавить посылку",
+    transformData: (data) => ({
+      ...data,
+      status: "На складе в Китае",
+    }),
+  });
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      trackingNumber: "",
+      tracking_number: "",
+      description: "",
     },
   });
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    setIsLoading(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Пользователь не авторизован");
-
-      const { error } = await supabase.from("packages").insert({
-        tracking_number: values.trackingNumber,
-        user_id: user.id,
-        status: "На складе в Китае",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "Успешно",
-        description: "Посылка добавлена",
-      });
-
+  const onSubmit = async (values: FormValues) => {
+    await addItem(values, () => {
       form.reset();
-      onSuccess();
-    } catch (error) {
-      toast({
-        title: "Ошибка",
-        description: "Не удалось добавить посылку",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+      onPackageAdded();
+      onOpenChange(false);
+    });
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Добавить посылку</DialogTitle>
+          <DialogTitle>Добавить новую посылку</DialogTitle>
         </DialogHeader>
-
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
-              name="trackingNumber"
+              name="tracking_number"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Трек номер</FormLabel>
+                  <FormLabel>Трек-номер</FormLabel>
                   <FormControl>
-                    <Input placeholder="TE-6507" {...field} />
+                    <Input 
+                      disabled={isLoading} 
+                      placeholder="Например: TE-6507"
+                      {...field} 
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-
-            <Button type="submit" disabled={isLoading} className="w-full">
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Добавление...
-                </>
-              ) : (
-                "Добавить"
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Описание посылки</FormLabel>
+                  <FormControl>
+                    <Textarea 
+                      disabled={isLoading} 
+                      placeholder="Опишите содержимое посылки"
+                      {...field} 
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
               )}
+            />
+            <Button type="submit" disabled={isLoading} className="w-full">
+              {isLoading ? "Добавление..." : "Добавить посылку"}
             </Button>
           </form>
         </Form>

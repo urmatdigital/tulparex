@@ -1,48 +1,42 @@
 "use client";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useToast } from "@/components/ui/use-toast";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useSession } from "./hooks/useSession";
+
+interface User {
+  email: string;
+  user_metadata?: {
+    avatar_url?: string;
+  };
+}
 
 interface UserNavProps {
-  user: any;
+  user: User;
 }
 
 export default function UserNav({ user }: UserNavProps) {
-  const { toast } = useToast();
-  const router = useRouter();
-  const supabase = createClientComponentClient();
-
-  const handleSignOut = async () => {
-    try {
-      await supabase.auth.signOut();
-      toast({
-        title: "Выход выполнен",
-        description: "Вы успешно вышли из системы",
-      });
-      router.refresh();
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Ошибка",
-        description: "Не удалось выйти из системы",
-      });
-    }
-  };
+  const { signOut } = useSession();
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Avatar className="h-8 w-8 cursor-pointer">
+          {user.user_metadata?.avatar_url && (
+            <AvatarImage
+              src={user.user_metadata.avatar_url}
+              alt={user.email}
+            />
+          )}
           <AvatarFallback>
-            {user.email?.[0].toUpperCase()}
+            {user.email?.[0]?.toUpperCase() ?? 'U'}
           </AvatarFallback>
         </Avatar>
       </DropdownMenuTrigger>
@@ -54,7 +48,19 @@ export default function UserNav({ user }: UserNavProps) {
             </p>
           </div>
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleSignOut} className="text-red-600">
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/dashboard" className="cursor-pointer">
+            Панель управления
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/profile" className="cursor-pointer">
+            Профиль
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={signOut} className="text-red-600 cursor-pointer">
           Выйти
         </DropdownMenuItem>
       </DropdownMenuContent>

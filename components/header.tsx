@@ -13,12 +13,19 @@ import { ThemeToggle } from "./theme-toggle";
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const supabase = createClientComponentClient();
 
   useEffect(() => {
     const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        setUser(user);
+      } catch (error) {
+        console.error('Error fetching user:', error);
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     getUser();
@@ -51,96 +58,82 @@ export default function Header() {
                     Главная
                   </Link>
                 </li>
-                <li>
-                  <Link href="#" className="hover:text-primary transition-colors">
-                    О нас
-                  </Link>
-                </li>
-                <li>
-                  <Link href="#" className="hover:text-primary transition-colors">
-                    Контакты
-                  </Link>
-                </li>
+                {user && (
+                  <li>
+                    <Link
+                      href="/dashboard"
+                      className="hover:text-primary transition-colors"
+                    >
+                      Панель управления
+                    </Link>
+                  </li>
+                )}
               </ul>
             </nav>
 
             <div className="flex items-center gap-4">
               <ThemeToggle />
-              {!user ? (
-                <Button asChild variant="default">
-                  <Link href="/auth">
-                    Войти
-                  </Link>
-                </Button>
-              ) : (
-                <UserNav user={user} />
+              {!isLoading && (
+                <>
+                  {user ? (
+                    <UserNav user={user} />
+                  ) : (
+                    <Link href="/auth">
+                      <Button variant="outline" size="sm">
+                        Войти
+                      </Button>
+                    </Link>
+                  )}
+                </>
               )}
             </div>
 
-            <Button
-              variant="ghost"
-              size="icon"
+            <button
               className="md:hidden"
               onClick={toggleMenu}
+              aria-label="Toggle menu"
             >
               {isMenuOpen ? (
                 <X className="h-6 w-6" />
               ) : (
                 <Menu className="h-6 w-6" />
               )}
-            </Button>
+            </button>
           </div>
         </div>
 
-        {/* Mobile Navigation */}
-        <nav
-          className={cn(
-            "md:hidden",
-            isMenuOpen ? "block" : "hidden"
-          )}
-        >
-          <ul className="py-4 space-y-4">
-            <li>
+        {/* Mobile menu */}
+        {isMenuOpen && (
+          <div className="md:hidden mt-4">
+            <nav className="flex flex-col gap-4">
               <Link
                 href="/"
-                className="block hover:text-primary transition-colors"
+                className="hover:text-primary transition-colors"
                 onClick={toggleMenu}
               >
                 Главная
               </Link>
-            </li>
-            <li>
-              <Link
-                href="#"
-                className="block hover:text-primary transition-colors"
-                onClick={toggleMenu}
-              >
-                О нас
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="#"
-                className="block hover:text-primary transition-colors"
-                onClick={toggleMenu}
-              >
-                Контакты
-              </Link>
-            </li>
-            {!user && (
-              <li>
-                <Button asChild variant="default" className="w-full">
-                  <Link
-                    href="/auth"
-                    onClick={toggleMenu}
-                  >
-                    Войти
-                  </Link>
-                </Button>
-              </li>
-            )}
-          </ul>
-        </nav>
+              {user && (
+                <Link
+                  href="/dashboard"
+                  className="hover:text-primary transition-colors"
+                  onClick={toggleMenu}
+                >
+                  Панель управления
+                </Link>
+              )}
+              {!user && (
+                <Link
+                  href="/auth"
+                  className="hover:text-primary transition-colors"
+                  onClick={toggleMenu}
+                >
+                  Войти
+                </Link>
+              )}
+            </nav>
+          </div>
+        )}
       </div>
     </header>
   );

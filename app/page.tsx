@@ -1,5 +1,5 @@
 import { Package } from "lucide-react";
-import TrackingForm from "@/components/tracking-form";
+import { TrackingFormWrapper } from "@/components/tracking-form-wrapper";
 
 export default function Home() {
   return (
@@ -21,7 +21,7 @@ export default function Home() {
           </p>
 
           <div className="space-y-8">
-            <TrackingForm />
+            <TrackingFormWrapper />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-16">

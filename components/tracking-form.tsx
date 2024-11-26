@@ -1,16 +1,13 @@
 "use client";
 
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/components/ui/use-toast";
 import TrackingResult from "@/components/tracking-result";
 import { Search } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { usePackageTracking } from "@/components/dashboard/hooks/usePackageTracking";
 
 const formSchema = z.object({
   trackingNumber: z
@@ -19,80 +16,16 @@ const formSchema = z.object({
     .regex(/^TE-\d{4}$/, "Неверный формат. Пример: TE-6507"),
 });
 
-const PACKAGE_STATUSES = {
-  IN_CHINA: "На складе в Китае",
-  IN_TRANSIT: "В пути со склада Китай в Бишкек",
-  AT_BORDER: "На границе",
-  IN_CUSTOMS: "В терминале Таможни",
-  IN_BISHKEK: "На складе в Бишкеке",
-  READY: "Готов к выдаче",
-};
-
 export default function TrackingForm() {
-  const { toast } = useToast();
-  const router = useRouter();
-  const supabase = createClientComponentClient();
-  const [isLoading, setIsLoading] = useState(false);
-  const [trackingResult, setTrackingResult] = useState(null);
-
+  const { isLoading, trackingResult, trackPackage } = usePackageTracking();
+  
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      trackingNumber: "",
-    },
+    defaultValues: { trackingNumber: "" },
   });
 
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    setIsLoading(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        toast({
-          title: "Необходима авторизация",
-          description: "Для отслеживания посылок, пожалуйста, войдите в систему",
-        });
-        router.push("/auth");
-        return;
-      }
-
-      // Поиск посылки в базе данных
-      const { data: package_data, error } = await supabase
-        .from('packages')
-        .select('*')
-        .eq('tracking_number', values.trackingNumber)
-        .single();
-
-      if (error || !package_data) {
-        toast({
-          title: "Посылка не найдена",
-          description: "Под таким номером нет посылок",
-          variant: "destructive",
-        });
-        setTrackingResult(null);
-        return;
-      }
-
-      setTrackingResult({
-        code: package_data.tracking_number,
-        status: package_data.status,
-        timestamp: new Date(package_data.updated_at).toLocaleString(),
-        client: package_data.client_name,
-      });
-
-      toast({
-        title: "Посылка найдена",
-        description: `Статус: ${package_data.status}`,
-      });
-    } catch (error) {
-      toast({
-        title: "Ошибка",
-        description: "Произошла ошибка при отслеживании посылки",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+  const onSubmit = (values: z.infer<typeof formSchema>) => {
+    trackPackage(values.trackingNumber);
   };
 
   return (

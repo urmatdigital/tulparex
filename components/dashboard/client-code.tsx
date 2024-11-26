@@ -1,62 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Loader2 } from "lucide-react";
+import { useSupabase } from "@/components/providers/supabase-provider";
+import { useClientCode } from "./hooks/useClientCode";
 
 export default function ClientCode() {
-  const [code, setCode] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const supabase = createClientComponentClient();
+  const { user } = useSupabase();
+  const { code, isLoading, error, loadCode } = useClientCode();
 
   useEffect(() => {
-    loadClientCode();
-  }, []);
-
-  const loadClientCode = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // Проверяем существующий код
-      const { data: existingCode, error: fetchError } = await supabase
-        .from('client_codes')
-        .select('code')
-        .eq('user_id', user.id)
-        .single();
-
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        throw fetchError;
-      }
-
-      if (existingCode) {
-        setCode(existingCode.code);
-      } else {
-        // Генерируем новый код
-        const newCode = generateCode();
-        const { error: insertError } = await supabase
-          .from('client_codes')
-          .insert({
-            user_id: user.id,
-            code: newCode
-          });
-
-        if (insertError) throw insertError;
-        setCode(newCode);
-      }
-    } catch (error) {
-      console.error('Error loading client code:', error);
-    } finally {
-      setIsLoading(false);
+    console.log('Current user:', user);
+    if (user) {
+      console.log('Loading code for user ID:', user.id);
+      loadCode(user.id);
     }
-  };
-
-  const generateCode = () => {
-    const prefix = 'TE';
-    const number = Math.floor(1000 + Math.random() * 9000);
-    return `${prefix}-${number}`;
-  };
+  }, [user]);
 
   if (isLoading) {
     return (
@@ -71,13 +31,46 @@ export default function ClientCode() {
     );
   }
 
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Ошибка</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-destructive text-center">{error}</div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!code) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Код клиента</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-muted-foreground text-center">
+            Код клиента не найден
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Ваш код клиента</CardTitle>
       </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-bold text-center">{code}</div>
+      <CardContent className="space-y-4">
+        <div className="text-4xl font-bold text-center">{code.code}</div>
+        {code.description && (
+          <div className="text-muted-foreground text-center">
+            {code.description}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

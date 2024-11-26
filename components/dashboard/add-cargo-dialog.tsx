@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -21,8 +20,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/components/ui/use-toast";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { useAddItem } from "./hooks/useAddItem";
 
 const formSchema = z.object({
   tracking_number: z.string().min(1, "Введите трек-номер"),
@@ -40,9 +38,16 @@ export default function AddCargoDialog({
   onOpenChange,
   onCargoAdded,
 }: AddCargoDialogProps) {
-  const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
-  const supabase = createClientComponentClient();
+  const { isLoading, addItem } = useAddItem({
+    table: "cargos",
+    successMessage: "Груз добавлен в систему",
+    errorMessage: "Не удалось добавить груз",
+    transformData: (data, userId) => ({
+      ...data,
+      user_id: userId,
+      status: "Создан",
+    }),
+  });
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -53,37 +58,10 @@ export default function AddCargoDialog({
   });
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    setIsLoading(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Пользователь не авторизован");
-
-      const { error } = await supabase.from("cargos").insert({
-        user_id: user.id,
-        tracking_number: values.tracking_number,
-        description: values.description,
-        status: "Создан",
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "Успешно!",
-        description: "Груз добавлен в систему",
-      });
-
+    await addItem(values, () => {
       form.reset();
       onCargoAdded();
-    } catch (error) {
-      console.error("Error adding cargo:", error);
-      toast({
-        variant: "destructive",
-        title: "Ошибка",
-        description: "Не удалось добавить груз",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    });
   };
 
   return (
@@ -101,7 +79,7 @@ export default function AddCargoDialog({
                 <FormItem>
                   <FormLabel>Трек-номер</FormLabel>
                   <FormControl>
-                    <Input placeholder="TE-XXXX" {...field} />
+                    <Input disabled={isLoading} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -114,16 +92,13 @@ export default function AddCargoDialog({
                 <FormItem>
                   <FormLabel>Описание груза</FormLabel>
                   <FormControl>
-                    <Textarea
-                      placeholder="Опишите ваш груз..."
-                      {...field}
-                    />
+                    <Textarea disabled={isLoading} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button type="submit" disabled={isLoading}>
               {isLoading ? "Добавление..." : "Добавить груз"}
             </Button>
           </form>
